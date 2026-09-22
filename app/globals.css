@@ -1,0 +1,154 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #faf6f0;
+  color: #2b2620;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.shell {
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 20px 24px;
+}
+
+.header {
+  margin-bottom: 18px;
+}
+
+.header h1 {
+  font-size: 1.4rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b5a3e;
+  margin: 0 0 4px;
+}
+
+.header p {
+  margin: 0;
+  color: #7a7264;
+  font-size: 0.92rem;
+  font-style: italic;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 2px 20px;
+}
+
+.msg {
+  margin-bottom: 20px;
+  line-height: 1.55;
+  font-size: 1.05rem;
+  white-space: pre-wrap;
+}
+
+.msg.user {
+  color: #3a3226;
+}
+
+.msg.user .label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a89878;
+  margin-bottom: 4px;
+}
+
+.msg.ivaan .label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a6f4e;
+  margin-bottom: 4px;
+}
+
+.beat {
+  border-left: 3px solid #c9a96e;
+  padding: 6px 14px;
+  margin: 10px 0;
+  font-style: italic;
+  color: #6b5a3e;
+  background: #f3ead9;
+}
+
+.composer {
+  display: flex;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e4d9c5;
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  min-height: 52px;
+  max-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid #d8caa9;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 1rem;
+  background: #fffdf8;
+  color: #2b2620;
+}
+
+.composer button {
+  align-self: flex-end;
+  background: #6b5a3e;
+  color: #faf6f0;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.composer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  font-size: 0.8rem;
+  color: #a3987f;
+}
+
+.footer button {
+  background: none;
+  border: 1px solid #d8caa9;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #6b5a3e;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.retry-button {
+  background: #f3ead9;
+  border: 1px solid #d8caa9;
+  border-radius: 6px;
+  padding: 8px 14px;
+  color: #6b5a3e;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.typing {
+  color: #a3987f;
+  font-style: italic;
+}
