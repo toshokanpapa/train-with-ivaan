@@ -169,3 +169,21 @@ html, body {
   margin-top: 10px;
   font-style: normal;
 }
+
+/* Character counter and paste note, shown only near the per-message limit. */
+.composer-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 6px;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #8f8573;
+}
+
+.composer-meta .count {
+  margin-left: auto;
+  white-space: nowrap;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}

@@ -5,6 +5,8 @@ import { toDisplayLines } from "../lib/display-text";
 import { NOTICES, STREAM_ERROR_MARK } from "../lib/errors";
 
 const STORAGE_KEY = "ivaan-conversation-v1";
+const MAX_MESSAGE_CHARS = 6000; // one message; the relay trims past this only as a backstop
+const COUNTER_FROM_CHARS = 5000; // the character counter appears from here
 const IDLE_TIMEOUT_MS = 75000; // give up only after 75s with no new words arriving
 const THINKING_PHRASES = ["Pondering", "Sitting with that", "Turning it over", "Listening"];
 
@@ -57,6 +59,7 @@ class TurnError extends Error {
 export default function Page() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [pasteCut, setPasteCut] = useState(false); // a paste didn't fully fit in the box
   const [streaming, setStreaming] = useState(false);
   const [started, setStarted] = useState(false);
   const [thinkingPhrase, setThinkingPhrase] = useState(THINKING_PHRASES[0]);
@@ -212,6 +215,7 @@ export default function Page() {
     const text = input.trim();
     if (!text || streaming) return;
     setInput("");
+    setPasteCut(false);
     sendTurn(messages, text);
   }
 
@@ -226,6 +230,19 @@ export default function Page() {
     a.download = "ivaan-conversation.txt";
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleInputChange(e) {
+    setInput(e.target.value);
+    if (e.target.value.length < MAX_MESSAGE_CHARS) setPasteCut(false);
+  }
+
+  function handlePaste(e) {
+    // The box stops at the limit on its own; this just tells the person when a paste was cut.
+    const pasted = e.clipboardData?.getData("text") ?? "";
+    const { selectionStart, selectionEnd, value } = e.target;
+    const resulting = value.length - (selectionEnd - selectionStart) + pasted.length;
+    if (resulting > MAX_MESSAGE_CHARS) setPasteCut(true);
   }
 
   function handleKeyDown(e) {
@@ -291,8 +308,10 @@ export default function Page() {
       <div className="composer">
         <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
+          maxLength={MAX_MESSAGE_CHARS}
           placeholder="Write as much or as little as you like..."
           disabled={streaming}
         />
@@ -300,6 +319,19 @@ export default function Page() {
           Send
         </button>
       </div>
+      {(input.length >= COUNTER_FROM_CHARS || pasteCut) && (
+        <div className="composer-meta">
+          {pasteCut && (
+            <span>
+              Your paste was longer than {MAX_MESSAGE_CHARS.toLocaleString("en-US")} characters, so the
+              rest wasn't added. You could send it in two parts.
+            </span>
+          )}
+          <span className="count">
+            {input.length.toLocaleString("en-US")} / {MAX_MESSAGE_CHARS.toLocaleString("en-US")}
+          </span>
+        </div>
+      )}
 
       <div className="footer">
         <span>Private — nothing is stored.</span>
