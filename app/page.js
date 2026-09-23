@@ -1,26 +1,57 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toDisplayLines } from "../lib/display-text";
+import { NOTICES, STREAM_ERROR_MARK } from "../lib/errors";
 
 const STORAGE_KEY = "ivaan-conversation-v1";
-const CLIENT_TIMEOUT_MS = 65000; // just past the server's 60s ceiling
+const IDLE_TIMEOUT_MS = 75000; // give up only after 75s with no new words arriving
 const THINKING_PHRASES = ["Pondering", "Sitting with that", "Turning it over", "Listening"];
 
-function renderMessageText(text) {
+function renderSegments(segments) {
+  return segments.map((s, j) =>
+    s.style === "strong" ? (
+      <strong key={j}>{s.text}</strong>
+    ) : s.style === "em" ? (
+      <em key={j}>{s.text}</em>
+    ) : (
+      <span key={j}>{s.text}</span>
+    )
+  );
+}
+
+function renderIvaanText(text) {
   // Lines like: > *Your project is not falling apart.*
-  // render as a visually distinct beat. Everything else is plain text.
-  const lines = text.split("\n");
-  return lines.map((line, i) => {
-    const match = line.match(/^>\s*\*(.+)\*\s*$/);
-    if (match) {
-      return (
-        <div className="beat" key={i}>
-          {match[1]}
-        </div>
-      );
-    }
-    return line.length ? <div key={i}>{line}</div> : <div key={i}>&nbsp;</div>;
+  // render as a visually distinct beat. Markdown symbols are never shown raw.
+  return toDisplayLines(text).map((line, i) => {
+    if (line.type === "blank") return <div key={i}>&nbsp;</div>;
+    return (
+      <div className={line.type === "beat" ? "beat" : undefined} key={i}>
+        {renderSegments(line.segments)}
+      </div>
+    );
   });
+}
+
+function plainIvaanText(text) {
+  // The downloaded transcript reads like the screen: no markdown symbols.
+  return toDisplayLines(text)
+    .map((line) => line.segments.map((s) => s.text).join(""))
+    .join("\n");
+}
+
+function renderUserText(text) {
+  // What the person typed is shown exactly as typed.
+  return text.split("\n").map((line, i) =>
+    line.length ? <div key={i}>{line}</div> : <div key={i}>&nbsp;</div>
+  );
+}
+
+class TurnError extends Error {
+  constructor(kind) {
+    super(kind);
+    this.kind = kind; // "transient" | "timeout" | "fatal"
+  }
 }
 
 export default function Page() {
@@ -29,7 +60,7 @@ export default function Page() {
   const [streaming, setStreaming] = useState(false);
   const [started, setStarted] = useState(false);
   const [thinkingPhrase, setThinkingPhrase] = useState(THINKING_PHRASES[0]);
-  const [lastFailedHistory, setLastFailedHistory] = useState(null);
+  const [notice, setNotice] = useState(null); // { kind, history, partial } after a failed turn
   const bottomRef = useRef(null);
 
   // Restore from this browser tab's session storage on load (refresh-survival guardrail).
@@ -81,6 +112,57 @@ export default function Page() {
     await sendTurn([]);
   }
 
+  // One request to the relay. Calls onText with the reply so far as it streams in.
+  // Throws a TurnError ("transient", "timeout" or "fatal") if the reply doesn't complete.
+  async function requestReply(payload, onText) {
+    const controller = new AbortController();
+    let idleId;
+    let timedOut = false;
+    const armIdleTimer = () => {
+      clearTimeout(idleId);
+      idleId = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    armIdleTimer();
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ messages: payload }),
+      });
+
+      if (!res.ok || !res.body) {
+        const kind = await res.json().then((b) => b.kind).catch(() => "transient");
+        throw new TurnError(kind === "fatal" ? "fatal" : "transient");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let received = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        armIdleTimer(); // every piece of the reply resets the 75s clock
+        received += decoder.decode(value, { stream: true });
+        // The relay marks a mid-reply failure after the text; never display the marker.
+        onText(received.split("\u0000")[0]);
+        if (received.includes(STREAM_ERROR_MARK)) throw new TurnError("transient");
+      }
+
+      if (!received) throw new TurnError("transient");
+    } catch (err) {
+      if (err instanceof TurnError) throw err;
+      throw new TurnError(timedOut ? "timeout" : "transient");
+    } finally {
+      clearTimeout(idleId);
+    }
+  }
+
   async function sendTurn(historyBeforeThisTurn, userText) {
     const next = userText
       ? [...historyBeforeThisTurn, { role: "user", content: userText }]
@@ -88,69 +170,42 @@ export default function Page() {
 
     if (userText) setMessages(next);
     setStreaming(true);
-    setLastFailedHistory(null);
-
-    let assistantText = "";
-    let gotAnyText = false;
+    setNotice(null);
     setMessages((cur) => [...cur, { role: "assistant", content: "" }]);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          messages: next.length
-            ? next
-            : [{ role: "user", content: "(begin)" }],
-        }),
-      });
-
-      if (!res.body) throw new Error("No response body");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        if (chunk) gotAnyText = true;
-        assistantText += chunk;
-        setMessages((cur) => {
-          const copy = [...cur];
-          copy[copy.length - 1] = { role: "assistant", content: assistantText };
-          return copy;
-        });
-      }
-
-      if (!gotAnyText) throw new Error("Empty response");
-    } catch (err) {
-      const timedOut = err && err.name === "AbortError";
+    let shown = "";
+    const onText = (text) => {
+      shown = text;
       setMessages((cur) => {
         const copy = [...cur];
-        copy[copy.length - 1] = {
-          role: "assistant",
-          content: timedOut
-            ? "This is taking longer than expected, and I'd rather say so than leave you waiting. Nothing you wrote is lost."
-            : "Something interrupted the connection just then. Nothing you wrote is lost.",
-        };
+        copy[copy.length - 1] = { role: "assistant", content: text };
         return copy;
       });
-      setLastFailedHistory(next);
+    };
+    const payload = next.length ? next : [{ role: "user", content: "(begin)" }];
+
+    try {
+      try {
+        await requestReply(payload, onText);
+      } catch (err) {
+        // One silent retry for a brief hiccup, but only if nothing was shown yet.
+        if (err.kind !== "transient" || shown) throw err;
+        await requestReply(payload, onText);
+      }
+    } catch (err) {
+      // The error itself never enters the conversation; words already shown stay.
+      if (!shown) setMessages((cur) => cur.slice(0, -1));
+      setNotice({ kind: err.kind || "transient", history: next, partial: Boolean(shown) });
     } finally {
-      clearTimeout(timeoutId);
       setStreaming(false);
     }
   }
 
   function handleRetry() {
-    if (!lastFailedHistory || streaming) return;
-    // Drop the failed assistant placeholder before retrying the same turn.
-    setMessages((cur) => cur.slice(0, -1));
-    sendTurn(lastFailedHistory);
+    if (!notice || notice.kind === "fatal" || streaming) return;
+    // Drop a partial reply before asking again for the same turn.
+    if (notice.partial) setMessages((cur) => cur.slice(0, -1));
+    sendTurn(notice.history);
   }
 
   function handleSend() {
@@ -162,7 +217,7 @@ export default function Page() {
 
   function handleDownload() {
     const lines = messages.map((m) =>
-      m.role === "user" ? `You:\n${m.content}\n` : `Ivaan:\n${m.content}\n`
+      m.role === "user" ? `You:\n${m.content}\n` : `Ivaan:\n${plainIvaanText(m.content)}\n`
     );
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -213,16 +268,21 @@ export default function Page() {
             <span className="label">{m.role === "user" ? "You" : "Ivaan"}</span>
             {m.role === "assistant" && m.content === "" && streaming && i === messages.length - 1 ? (
               <span className="typing">{thinkingPhrase}...</span>
+            ) : m.role === "user" ? (
+              renderUserText(m.content)
             ) : (
-              renderMessageText(m.content)
+              renderIvaanText(m.content)
             )}
           </div>
         ))}
-        {lastFailedHistory && !streaming && (
-          <div style={{ marginTop: -8, marginBottom: 20 }}>
-            <button onClick={handleRetry} className="retry-button">
-              Try again
-            </button>
+        {notice && !streaming && (
+          <div className="notice">
+            <div>{NOTICES[notice.kind]}</div>
+            {notice.kind !== "fatal" && (
+              <button onClick={handleRetry} className="retry-button">
+                Try again
+              </button>
+            )}
           </div>
         )}
         <div ref={bottomRef} />

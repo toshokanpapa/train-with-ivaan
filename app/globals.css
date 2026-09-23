@@ -152,3 +152,20 @@ html, body {
   color: #a3987f;
   font-style: italic;
 }
+
+/* A note from the page itself (not from Ivaan) when a reply fails. */
+.notice {
+  text-align: center;
+  color: #8f8573;
+  font-size: 0.9rem;
+  font-style: italic;
+  border-top: 1px dashed #e4d9c5;
+  border-bottom: 1px dashed #e4d9c5;
+  padding: 12px 8px;
+  margin: 0 0 20px;
+}
+
+.notice .retry-button {
+  margin-top: 10px;
+  font-style: normal;
+}

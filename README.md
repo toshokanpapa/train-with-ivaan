@@ -80,15 +80,16 @@ conversation lives in your browser's own memory for that tab. Try the
 
 ## If something goes wrong
 
-- **A reply hangs for a while and then fails ("failed to fetch" or "taking
-  longer than expected"):** this build already raises Vercel's function
-  timeout to 60 seconds (the free-tier maximum), which should cover the
-  large majority of replies. If you still see this occasionally, a "Try
-  again" button will appear — nothing you wrote is lost, and clicking it
-  resends the same turn. If it happens often, it usually means individual
-  replies are running long; shortening `max_tokens` in
-  `app/api/chat/route.js`, or upgrading the Vercel project to the Pro tier
-  (which allows much longer function times), both help.
+- **A reply fails and a quiet note appears ("Ivaan couldn't reply just now"):**
+  nothing the person wrote is lost, and **Try again** resends the same turn.
+  Brief hiccups are already retried once automatically before the note
+  appears. The relay may run for up to 300 seconds (the Hobby-plan maximum
+  with Fluid compute, which is on by default — check Project → Settings →
+  Functions), and the page only gives up after 75 seconds with no new words
+  arriving. To see what actually happened, open the project's **Logs** in
+  Vercel and search for `ivaan_turn`: each reply writes one line with its
+  token counts, why it stopped, timings, and any error type — never the
+  conversation itself. On the Hobby plan, Vercel keeps these logs for 1 hour.
 - **Build fails on Vercel:** click into the failed deployment and read the
   error at the bottom — it's usually a typo introduced during upload
   (a file that didn't come through, or landed in the wrong folder). Compare
@@ -112,6 +113,8 @@ app/
   api/chat/route.js  talks to Claude; no dataset, no storage
 lib/
   ivaan-prompt.js    Ivaan's full instructions — persona, tone, guardrails
+  display-text.js    turns Ivaan's replies into clean text (no raw markdown symbols)
+  errors.js          the notes people see when a reply fails
 package.json         what to install
 .env.example          reminder of what env var Vercel needs
 ```
