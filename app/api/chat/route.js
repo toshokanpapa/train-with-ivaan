@@ -4,7 +4,10 @@ import { STREAM_ERROR_MARK } from "../../../lib/errors";
 export const runtime = "nodejs";
 export const maxDuration = 300; // seconds — matches the Hobby-plan ceiling with Fluid compute enabled
 
-const MODEL = "claude-sonnet-5";
+const MODEL = "claude-opus-5-5";
+// How much Opus 5.5 thinks before replying (it always thinks; this sets how much).
+// "medium" is the model's default, written out so it's visible: low | medium | high | xhigh | max.
+const EFFORT = "medium";
 const MAX_TURNS = 90; // hard backstop, never mentioned to the user
 const MAX_USER_CHARS = 6000; // longer messages are trimmed, not rejected
 const MAX_ASSISTANT_CHARS = 20000; // loose guard; real replies are bounded by max_tokens
@@ -113,6 +116,7 @@ export async function POST(req) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
+        output_config: { effort: EFFORT },
         // Cache the instructions explicitly, and let automatic caching move a second
         // marker to the end of the conversation each turn, so only new text is read fresh.
         system: [{ type: "text", text: IVAAN_SYSTEM_PROMPT, cache_control: CACHE }],

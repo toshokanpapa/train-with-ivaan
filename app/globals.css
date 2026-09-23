@@ -93,7 +93,10 @@ html, body {
   flex: 1;
   resize: none;
   min-height: 52px;
-  max-height: 160px;
+  /* Grows with the text (see page.js) up to ~20 lines, or 60% of a small screen, then scrolls. */
+  max-height: min(calc(20 * 1.4em + 22px), 60vh);
+  overflow-y: auto;
+  line-height: 1.4;
   padding: 10px 12px;
   border: 1px solid #d8caa9;
   border-radius: 8px;

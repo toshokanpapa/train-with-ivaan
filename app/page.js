@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toDisplayLines } from "../lib/display-text";
 import { NOTICES, STREAM_ERROR_MARK } from "../lib/errors";
 
@@ -65,6 +65,7 @@ export default function Page() {
   const [thinkingPhrase, setThinkingPhrase] = useState(THINKING_PHRASES[0]);
   const [notice, setNotice] = useState(null); // { kind, history, partial } after a failed turn
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Restore from this browser tab's session storage on load (refresh-survival guardrail).
   useEffect(() => {
@@ -93,6 +94,15 @@ export default function Page() {
       // Non-fatal if storage is unavailable.
     }
   }, [messages]);
+
+  // Grow the typing box with its text, from its starting size up to its CSS
+  // max-height (about 20 lines), after which it scrolls. Shrinks back when cleared.
+  useLayoutEffect(() => {
+    const box = inputRef.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = box.scrollHeight + 2 + "px"; // +2 for the top and bottom border
+  }, [input, started]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -307,6 +317,8 @@ export default function Page() {
 
       <div className="composer">
         <textarea
+          ref={inputRef}
+          rows={1}
           value={input}
           onChange={handleInputChange}
           onPaste={handlePaste}
